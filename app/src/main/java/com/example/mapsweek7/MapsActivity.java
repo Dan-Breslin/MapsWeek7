@@ -9,6 +9,8 @@ import androidx.fragment.app.FragmentActivity;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -19,9 +21,14 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.example.mapsweek7.databinding.ActivityMapsBinding;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -50,10 +57,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         @Override
         public void onLocationChanged(@NonNull Location location) {
             if(location != null){
-                Toast.makeText(getBaseContext(),"Current Location: Lat: " + location.getLatitude()
-                        + " Lng: " + location.getLongitude(),Toast.LENGTH_SHORT).show();
+                Toast.makeText(getBaseContext(),addressInfo(location.getLatitude(),location.getLongitude(),1)
+                        + "\nLatitude: "+ location.getLatitude()
+                        + "\nLongitude: " + location.getLongitude(),Toast.LENGTH_SHORT).show();
+
                 LatLng p = new LatLng(location.getLatitude(),location.getLongitude());
-                mMap.addMarker(new MarkerOptions().position(p).title("Current Location"));
+                mMap.addMarker(new MarkerOptions().position(p).title(addressInfo(location.getLatitude(),location.getLongitude(),0)));
                 mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(p,15.0f));
             }
         }
@@ -81,6 +90,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        //set the Location identifier to add 1 to the location of each new click
+        String addressInfo="";
+        String addressInfoMini = "";
 
         lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         locationListener = new MyLocationListener();
@@ -99,6 +111,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if(permissionGranted){
             lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,2,2,locationListener);
         }
+
+        // create Map click Listener
+        mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+            @Override
+            // On click Set the Marker and options
+            public void onMapClick(@NonNull LatLng latLng) {
+
+                    googleMap.addMarker(new MarkerOptions().position(latLng)
+                            // Use find AddressInfo Function to get minimal information on current location
+                            .title(addressInfo(latLng.latitude,latLng.longitude,0)) // display condensed address info
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET)));
+
+                    // Use find AddressInfo Function to get information on current location
+                    Toast.makeText(getBaseContext(),addressInfo(latLng.latitude,latLng.longitude,1),Toast.LENGTH_LONG).show();
+
+            }
+
+
+        });
     }
 
     @Override
@@ -139,4 +170,43 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             lm.removeUpdates(locationListener);
         }
     }
+
+    // This was being called too many times so created a function to make it easier.
+    // It gets fed the location and a tag to determine which info is required back
+    public String addressInfo(double lat,double lon, int i){
+        String addressInfo="";
+        String addressInfoMini = "";
+
+        // Reverse GeoLocation
+        Geocoder geocoder = new Geocoder(getBaseContext(), Locale.getDefault());
+        try{
+            List<Address> addresses = geocoder.getFromLocation(lat,lon,1);
+            // code for Address String taken from StackOverflow examples
+            if(addresses != null && addresses.size() > 0 ){
+                Address address = addresses.get(0);
+                //Address Info
+                addressInfo = String.format("%s, %s, \n%s, %s, \n%s, \n%s",
+                        address.getSubThoroughfare(),
+                        address.getThoroughfare(),
+                        address.getPostalCode(),
+                        address.getLocality(),
+                        address.getSubAdminArea(),
+                        address.getCountryName());
+
+                // Condensed Address info
+                addressInfoMini = String.format("%s, %s, %s",
+                        address.getSubThoroughfare(),
+                        address.getThoroughfare(),
+                        address.getPostalCode());
+            }
+
+        }catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        if (i ==1)
+        return addressInfo;
+        else return
+                addressInfoMini;
+    }
+
 }
